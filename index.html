@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>나윤 유치원·어린이집 입학현황 대시보드</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#ffffff; --line:#e4e8f0; --ink:#1f2937; --sub:#6b7280;
+    --brand:#4f6df5; --brand-soft:#eef1ff;
+    --wait:#3b82f6; --ok:#16a34a; --no:#9ca3af; --check:#f59e0b;
+    --shadow:0 1px 3px rgba(20,30,60,.08),0 8px 24px rgba(20,30,60,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+    background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+
+  /* 비밀번호 잠금 화면 */
+  #lockscreen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999}
+  #lockscreen.hidden{display:none}
+  .lock-box{background:#fff;border-radius:20px;padding:40px 32px;box-shadow:0 8px 40px rgba(20,30,60,.12);text-align:center;width:100%;max-width:320px}
+  .lock-icon{font-size:44px;margin-bottom:10px}
+  .lock-box h2{font-size:18px;font-weight:800;margin:0 0 6px;color:var(--ink)}
+  .lock-box p{font-size:13px;color:var(--sub);margin:0 0 20px}
+  .lock-box input{width:100%;padding:13px;text-align:center;font-size:24px;letter-spacing:10px;border:2px solid var(--line);border-radius:12px;font-family:inherit;outline:none;transition:border .2s}
+  .lock-box input:focus{border-color:var(--brand)}
+  .lock-box input.shake{border-color:#dc2626;animation:shake .35s}
+  .lock-btn{margin-top:12px;width:100%;padding:13px;background:var(--brand);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer}
+  .lock-btn:hover{filter:brightness(.95)}
+  .lock-errmsg{font-size:12px;color:#dc2626;margin-top:8px;min-height:18px}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}60%{transform:translateX(8px)}}
+
+  /* 메인 */
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 18px 60px}
+  header.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px}
+  h1{font-size:22px;margin:0;font-weight:800;letter-spacing:-.3px}
+  .memo{color:var(--sub);font-size:13px;margin:6px 0 18px;line-height:1.5}
+  .memo b{color:var(--ink)}
+  #syncbar{font-size:12px;padding:6px 14px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;transition:all .3s}
+  #syncbar.idle{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+  #syncbar.saving{background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe}
+  #syncbar.error{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+  .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+  @media(max-width:720px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
+  .stat .n{font-size:26px;font-weight:800;line-height:1}
+  .stat .l{font-size:12px;color:var(--sub);margin-top:6px}
+  .stat.b .n{color:var(--brand)} .stat.w .n{color:var(--wait)}
+  .stat.o .n{color:var(--ok)} .stat.c .n{color:var(--check)} .stat.x .n{color:var(--no)}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+  .search{flex:1;min-width:180px;position:relative}
+  .search input{width:100%;padding:10px 12px 10px 34px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--card)}
+  .search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.5}
+  select,.btn{padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--card);cursor:pointer;color:var(--ink)}
+  .btn{font-weight:600}
+  .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .btn.ghost{background:var(--card)}
+  .btn:hover{filter:brightness(.98)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .chip{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13px;cursor:pointer;color:var(--sub)}
+  .chip.active{background:var(--brand-soft);border-color:var(--brand);color:var(--brand);font-weight:700}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+  .ccard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow);border-left:5px solid var(--line);position:relative}
+  .ccard.s-wait{border-left-color:var(--wait)} .ccard.s-ok{border-left-color:var(--ok)}
+  .ccard.s-no{border-left-color:var(--no)} .ccard.s-check{border-left-color:var(--check)}
+  .ch{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .ch .name{font-size:17px;font-weight:800;letter-spacing:-.3px}
+  .badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .b-wait{background:#dbeafe;color:#1d4ed8} .b-ok{background:#dcfce7;color:#15803d}
+  .b-no{background:#f3f4f6;color:#4b5563} .b-check{background:#fef3c7;color:#b45309}
+  .type{display:inline-block;font-size:11px;color:var(--sub);background:#f3f4f6;padding:2px 8px;border-radius:6px;margin-top:6px}
+  .rows{margin-top:12px;font-size:13px;display:grid;gap:6px}
+  .row{display:flex;gap:8px}
+  .row .k{color:var(--sub);min-width:62px;flex-shrink:0}
+  .row .v{color:var(--ink);word-break:break-word}
+  .row .v a{color:var(--brand)}
+  .memo-line{margin-top:10px;font-size:13px;line-height:1.5;background:#fafbff;border:1px dashed var(--line);border-radius:10px;padding:9px 11px;color:#374151;white-space:pre-wrap}
+  .next-tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:#b45309;background:#fef3c7;padding:3px 8px;border-radius:8px;margin-top:10px}
+  .cact{display:flex;gap:8px;margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+  .cact button{flex:1;font-size:13px;padding:7px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--sub);font-weight:600}
+  .cact button:hover{background:#f9fafb;color:var(--ink)}
+  .empty{text-align:center;color:var(--sub);padding:50px;font-size:14px}
+  .ov{position:fixed;inset:0;background:rgba(17,24,39,.5);display:none;align-items:flex-start;justify-content:center;padding:30px 14px;z-index:50;overflow:auto}
+  .ov.open{display:flex}
+  .modal{background:#fff;border-radius:18px;width:100%;max-width:520px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+  .modal h2{margin:0 0 16px;font-size:18px}
+  .field{margin-bottom:13px}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--sub);margin-bottom:5px}
+  .field input,.field select,.field textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit}
+  .field textarea{min-height:74px;resize:vertical}
+  .frow{display:flex;gap:10px}.frow .field{flex:1}
+  .mact{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+  .mact .right{display:flex;gap:10px}
+  .footer-note{margin-top:26px;font-size:12px;color:var(--sub);text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+
+<!-- 비밀번호 잠금 화면 -->
+<div id="lockscreen">
+  <div class="lock-box">
+    <div class="lock-icon">🔒</div>
+    <h2>나윤 입학현황</h2>
+    <p>비밀번호를 입력하세요</p>
+    <input type="password" id="pw-input" maxlength="10" placeholder="••••"
+      oninput="document.getElementById('errmsg').textContent=''"
+      onkeydown="if(event.key==='Enter')checkPw()">
+    <button class="lock-btn" onclick="checkPw()">확인</button>
+    <div class="lock-errmsg" id="errmsg"></div>
+  </div>
+</div>
+
+<!-- 메인 대시보드 -->
+<div class="wrap">
+  <header class="top">
+    <h1>🏫 나윤 유치원·어린이집 입학현황</h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost" id="tokBtn" onclick="openToken()">🔑 관리자</button>
+      <button class="btn ghost" onclick="exportJSON()">⬇ 백업 저장</button>
+      <button class="btn ghost" onclick="document.getElementById('imp').click()">⬆ 백업 불러오기</button>
+      <input id="imp" type="file" accept="application/json" style="display:none" onchange="importJSON(event)">
+      <button class="btn primary" onclick="openForm()">＋ 기관 추가</button>
+    </div>
+  </header>
+  <p class="memo">목표: <b>2월까지 고양유정유치원</b> 재원 → <b>3월 신학기 입소</b>. 영유·유치원·어린이집 모두 대기 중.</p>
+  <div id="syncbar" class="idle">GitHub와 연결 준비 중…</div>
+  <div class="stats" id="stats"></div>
+  <div class="toolbar">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <input id="q" placeholder="기관명·메모 검색…" oninput="render()">
+    </div>
+    <select id="ftype" onchange="render()">
+      <option value="">전체 유형</option>
+      <option>유치원</option><option>병설유치원</option><option>어린이집</option><option>영유아·어학원</option>
+    </select>
+    <select id="sort" onchange="render()">
+      <option value="status">상태순</option>
+      <option value="name">이름순</option>
+      <option value="next">다음일정순</option>
+    </select>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div class="grid" id="grid"></div>
+  <p class="footer-note">입력 내용은 <b>GitHub 저장소의 data.json</b>에 저장됩니다. 방문자는 모두 같은 데이터를 보고, <b>🔑 관리자 토큰</b>을 등록한 사람만 수정·저장할 수 있어요.</p>
+</div>
+
+<!-- 기관 추가/수정 모달 -->
+<div class="ov" id="ov">
+  <div class="modal">
+    <h2 id="mtitle">기관 추가</h2>
+    <input type="hidden" id="f_id">
+    <div class="field"><label>기관명 *</label><input id="f_name" placeholder="예: 예지슬 유치원"></div>
+    <div class="frow">
+      <div class="field"><label>유형</label>
+        <select id="f_type"><option>유치원</option><option>병설유치원</option><option>어린이집</option><option>영유아·어학원</option></select></div>
+      <div class="field"><label>상태</label>
+        <select id="f_status">
+          <option value="wait">대기중</option><option value="ok">입학가능</option>
+          <option value="no">입학불가</option><option value="check">확인필요</option>
+        </select></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>대기번호</label><input id="f_wait" placeholder="예: 19 / 300번대"></div>
+      <div class="field"><label>신청방법</label>
+        <select id="f_method"><option value="">-</option><option>유선</option><option>홈페이지</option><option>방문</option></select></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>신청완료</label>
+        <select id="f_applied"><option value="">미정</option><option value="yes">완료</option><option value="no">미신청</option></select></div>
+      <div class="field"><label>다음 액션 날짜</label><input id="f_next" type="date"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>전화번호</label><input id="f_phone" placeholder="02-..."></div>
+      <div class="field"><label>홈페이지</label><input id="f_url" placeholder="https://"></div>
+    </div>
+    <div class="field"><label>메모</label><textarea id="f_memo" placeholder="진행 상황, 할 일 등"></textarea></div>
+    <div class="mact">
+      <button class="btn ghost" id="delbtn" style="color:#dc2626" onclick="delItem()">삭제</button>
+      <div class="right">
+        <button class="btn ghost" onclick="closeForm()">취소</button>
+        <button class="btn primary" onclick="saveItem()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 관리자 토큰 모달 -->
+<div class="ov" id="ovTok">
+  <div class="modal" style="max-width:440px">
+    <h2>🔑 관리자 토큰 등록</h2>
+    <p style="font-size:13px;color:var(--sub);line-height:1.55;margin:-6px 0 14px">
+      데이터를 저장(GitHub 커밋)하려면 GitHub <b>Personal Access Token</b>이 필요합니다.
+      방문자는 토큰 없이 보기만 가능하고, 진기 님만 토큰을 등록해 수정·저장할 수 있어요.
+      토큰은 <b>이 기기(브라우저)에만</b> 저장되며 화면·코드에 노출되지 않습니다.
+    </p>
+    <div class="field"><label>GitHub Token (ghp_… 또는 github_pat_…)</label>
+      <input id="tok_input" type="password" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off"></div>
+    <div id="tokMsg" style="font-size:12px;min-height:16px"></div>
+    <div class="mact">
+      <button class="btn ghost" style="color:#dc2626" onclick="clearToken()">토큰 지우기</button>
+      <div class="right">
+        <button class="btn ghost" onclick="closeToken()">취소</button>
+        <button class="btn primary" onclick="saveToken()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   ★ GitHub 저장 설정 — 아래 3개를 본인 저장소 정보로 교체 ★
+   GitHub Pages는 정적 호스팅이라, 데이터는 저장소의
+   data.json 파일에 '커밋'되는 방식으로 저장됩니다.
+   ============================================================ */
+const GH = {
+  owner : "여기에_GitHub_사용자명",   // 예: jinkee-kim
+  repo  : "여기에_저장소_이름",        // 예: nayoon-kinder
+  branch: "main",                     // 보통 main (구형 저장소는 master)
+  path  : "data.json"                 // 데이터 파일명 — 그대로 두기
+};
+/* ============================================================ */
+
+// ---- 비밀번호 잠금 ----
+const CORRECT_PW = '0715';
+const SESSION_KEY = 'nayoon_auth';
+
+function checkPw(){
+  const val = document.getElementById('pw-input').value;
+  if(val === CORRECT_PW){
+    sessionStorage.setItem(SESSION_KEY, '1');
+    document.getElementById('lockscreen').classList.add('hidden');
+    serverLoad();
+  } else {
+    const input = document.getElementById('pw-input');
+    input.classList.add('shake');
+    document.getElementById('errmsg').textContent = '비밀번호가 틀렸어요. 다시 입력해 주세요.';
+    input.value = '';
+    setTimeout(()=>input.classList.remove('shake'), 400);
+    input.focus();
+  }
+}
+
+function initLock(){
+  if(sessionStorage.getItem(SESSION_KEY) === '1'){
+    document.getElementById('lockscreen').classList.add('hidden');
+    serverLoad();
+  } else {
+    setTimeout(()=>document.getElementById('pw-input').focus(), 150);
+  }
+}
+
+// ---- 데이터 ----
+const STATUS={wait:{l:'대기중',c:'wait'},ok:{l:'입학가능',c:'ok'},no:{l:'입학불가',c:'no'},check:{l:'확인필요',c:'check'}};
+let data=[], filter='';
+
+const SEED=[
+  {name:'예지슬 유치원',type:'유치원',status:'wait',method:'유선',applied:'yes',memo:'유선 대기. 10월 입학설명회 때 연락 예정. 연락 없으면 콜백 요청.'},
+  {name:'운정유정유치원',type:'유치원',status:'wait',method:'홈페이지',applied:'yes',memo:'홈페이지로 대기자 접수함. 설명회 때 추가 접수 필요.'},
+  {name:'예원 유치원',type:'유치원',status:'wait',method:'유선',applied:'yes',memo:'유선 대기 신청 완료.'},
+  {name:'교하 슬기 유치원',type:'유치원',status:'check',memo:'상태 확인 필요.'},
+  {name:'예일 유치원',type:'유치원',status:'wait',method:'유선',applied:'yes',memo:'유선 대기. 10월 입학설명회 홈페이지 신청 필요.'},
+  {name:'운정초롱유치원',type:'유치원',status:'check',method:'홈페이지',applied:'no',memo:'홈페이지 대기자 접수 필요 — 아직 안 함.'},
+  {name:'헬렌도른 어학원',type:'영유아·어학원',status:'check',memo:'XX (확인 필요)'},
+  {name:'폴리 어학원',type:'영유아·어학원',status:'no',memo:'입학 불가.'},
+  {name:'SLP 어학원',type:'영유아·어학원',status:'no',memo:'입학 불가.'},
+  {name:'라이즈 어학원',type:'영유아·어학원',status:'check',memo:'확인 후 콜백 — 아직 연락 없음.'},
+  {name:'동패 유치원',type:'유치원',status:'check',memo:'매달 대기자 명단 있는지 확인 필요.'},
+  {name:'집앞 병설유치원',type:'병설유치원',status:'check',memo:'5세반 X, 6세반 4명 추가 — 나중에 대기 신청 필요.'},
+  {name:'아이사랑 어린이집',type:'어린이집',status:'wait',wait:'300번대',memo:'대기 300번대.'},
+  {name:'석곶 병설유치원',type:'병설유치원',status:'check',memo:'검색 필요.'},
+  {name:'두일 병설유치원',type:'병설유치원',status:'check',memo:'검색 필요.'},
+  {name:'자이시그니처어린이집',type:'어린이집',status:'check',wait:'앞에 19명',memo:'검색 필요 — 앞에 19명 대기.'},
+  {name:'우리아파트어린이집',type:'어린이집',status:'check',memo:'7월에 검색 필요.'}
+];
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+
+// ---- GitHub 저장/불러오기 ----
+const TOKEN_KEY='nayoon_gh_token';
+let ghSha=null, pendingSave=false;
+const ghConfigured = !GH.owner.includes('여기에') && !GH.repo.includes('여기에');
+function apiUrl(){return 'https://api.github.com/repos/'+GH.owner+'/'+GH.repo+'/contents/'+GH.path}
+function ghToken(){try{return localStorage.getItem(TOKEN_KEY)||''}catch(e){return ''}}
+function utf8ToB64(s){const b=new TextEncoder().encode(s);let x='';b.forEach(c=>x+=String.fromCharCode(c));return btoa(x)}
+function b64ToUtf8(b){const bin=atob((b||'').replace(/\s/g,''));const u=Uint8Array.from(bin,c=>c.charCodeAt(0));return new TextDecoder('utf-8').decode(u)}
+
+function syncBar(state, msg){
+  const el=document.getElementById('syncbar');
+  if(state==='saving'){el.className='saving';el.textContent='💾 '+(msg||'저장 중…')}
+  else if(state==='ok'){el.className='idle';el.textContent='✅ '+msg}
+  else if(state==='error'){el.className='error';el.textContent='⚠️ '+msg}
+}
+
+async function ghGet(){
+  const h={'Accept':'application/vnd.github+json'};
+  const t=ghToken(); if(t)h.Authorization='token '+t;
+  const res=await fetch(apiUrl()+'?ref='+GH.branch+'&t='+Date.now(),{headers:h});
+  if(res.status===404)return {missing:true};
+  if(!res.ok)throw new Error('GitHub 응답 '+res.status);
+  const j=await res.json();
+  return {sha:j.sha, data:JSON.parse(b64ToUtf8(j.content))};
+}
+
+async function serverLoad(){
+  if(!ghConfigured){
+    syncBar('error','GitHub 설정 전입니다. 파일 상단 GH 설정을 채워 주세요. (임시 데이터 표시)');
+    data=SEED.map(o=>Object.assign({id:uid(),wait:'',method:'',applied:'',next:'',phone:'',url:''},o));
+    chips();render();return;
+  }
+  syncBar('saving','불러오는 중…');
+  try{
+    const r=await ghGet();
+    if(r.missing){
+      data=SEED.map(o=>Object.assign({id:uid(),wait:'',method:'',applied:'',next:'',phone:'',url:''},o));
+      ghSha=null;
+      syncBar('ok','아직 저장 파일이 없어요. 수정 후 저장하면 data.json이 생성됩니다.');
+    } else {
+      data=Array.isArray(r.data)?r.data:[]; ghSha=r.sha;
+      syncBar('ok','GitHub에서 불러옴 ('+new Date().toLocaleString('ko-KR')+')');
+    }
+  }catch(e){
+    // 폴백: 정적 파일 직접 읽기(읽기 전용)
+    try{
+      const res=await fetch(GH.path+'?t='+Date.now());
+      const arr=await res.json();
+      data=Array.isArray(arr)?arr:[];
+      syncBar('ok','불러오기 완료(읽기 전용)');
+    }catch(e2){
+      data=SEED.map(o=>Object.assign({id:uid(),wait:'',method:'',applied:'',next:'',phone:'',url:''},o));
+      syncBar('error','불러오기 실패: '+e.message);
+    }
+  }
+  chips();render();
+}
+
+async function serverSave(){
+  if(!ghConfigured){syncBar('error','GitHub 설정 전 — 저장할 수 없습니다.');return}
+  if(!ghToken()){ pendingSave=true; openToken(); return; }
+  syncBar('saving','GitHub에 저장 중…');
+  const hdr={'Authorization':'token '+ghToken(),'Accept':'application/vnd.github+json','Content-Type':'application/json'};
+  try{
+    const body={message:'update data.json ('+new Date().toISOString()+')',
+      content:utf8ToB64(JSON.stringify(data,null,2)), branch:GH.branch};
+    if(ghSha)body.sha=ghSha;
+    let res=await fetch(apiUrl(),{method:'PUT',headers:hdr,body:JSON.stringify(body)});
+    if(res.status===409){ // sha 충돌 → 최신 sha 다시 받아 1회 재시도
+      const r=await ghGet(); ghSha=r.sha; body.sha=ghSha;
+      res=await fetch(apiUrl(),{method:'PUT',headers:hdr,body:JSON.stringify(body)});
+    }
+    const j=await res.json();
+    if(res.ok){ ghSha=j.content.sha; syncBar('ok','GitHub 저장 완료 ('+new Date().toLocaleString('ko-KR')+') — 모두 같은 데이터를 봅니다'); }
+    else if(res.status===401||res.status===403){ syncBar('error','토큰이 유효하지 않거나 권한이 없습니다.'); openToken(); }
+    else { syncBar('error','저장 실패: '+(j.message||res.status)); }
+  }catch(e){ syncBar('error','네트워크 오류: '+e.message); }
+}
+
+function save(){ serverSave(); }
+
+// ---- 관리자 토큰 ----
+function openToken(){document.getElementById('tok_input').value=ghToken();
+  document.getElementById('tokMsg').textContent='';document.getElementById('ovTok').classList.add('open');
+  setTimeout(()=>document.getElementById('tok_input').focus(),100)}
+function closeToken(){document.getElementById('ovTok').classList.remove('open');pendingSave=false}
+function saveToken(){
+  const v=document.getElementById('tok_input').value.trim();
+  if(!v){document.getElementById('tokMsg').innerHTML='<span style="color:#dc2626">토큰을 입력하세요.</span>';return}
+  try{localStorage.setItem(TOKEN_KEY,v)}catch(e){}
+  document.getElementById('ovTok').classList.remove('open');
+  syncBar('ok','관리자 토큰 등록됨');
+  if(pendingSave){pendingSave=false;serverSave();}
+}
+function clearToken(){try{localStorage.removeItem(TOKEN_KEY)}catch(e){}
+  document.getElementById('tok_input').value='';
+  document.getElementById('tokMsg').innerHTML='<span style="color:#16a34a">이 기기에서 토큰을 지웠습니다.</span>'}
+
+// ---- UI ----
+function stats(){
+  const c={wait:0,ok:0,no:0,check:0};
+  data.forEach(d=>c[d.status]!==undefined&&c[d.status]++);
+  document.getElementById('stats').innerHTML=`
+    <div class="stat b"><div class="n">${data.length}</div><div class="l">전체 기관</div></div>
+    <div class="stat w"><div class="n">${c.wait}</div><div class="l">대기중</div></div>
+    <div class="stat o"><div class="n">${c.ok}</div><div class="l">입학가능</div></div>
+    <div class="stat c"><div class="n">${c.check}</div><div class="l">확인필요</div></div>
+    <div class="stat x"><div class="n">${c.no}</div><div class="l">입학불가</div></div>`;
+}
+
+function chips(){
+  const opts=[['','전체'],['wait','대기중'],['ok','입학가능'],['check','확인필요'],['no','입학불가']];
+  document.getElementById('chips').innerHTML=opts.map(([v,l])=>
+    `<span class="chip ${filter===v?'active':''}" onclick="setFilter('${v}')">${l}</span>`).join('');
+}
+function setFilter(v){filter=v;chips();render()}
+
+function render(){
+  stats();
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  const ft=document.getElementById('ftype').value;
+  const sort=document.getElementById('sort').value;
+  let rows=data.filter(d=>{
+    if(filter&&d.status!==filter)return false;
+    if(ft&&d.type!==ft)return false;
+    if(q&&!(d.name+' '+(d.memo||'')).toLowerCase().includes(q))return false;
+    return true;
+  });
+  const order={wait:0,check:1,ok:2,no:3};
+  rows.sort((a,b)=>{
+    if(sort==='name')return a.name.localeCompare(b.name,'ko');
+    if(sort==='next')return (a.next||'9999').localeCompare(b.next||'9999');
+    return (order[a.status]-order[b.status])||a.name.localeCompare(b.name,'ko');
+  });
+  const g=document.getElementById('grid');
+  if(!rows.length){g.innerHTML='<div class="empty">표시할 기관이 없어요.</div>';return}
+  g.innerHTML=rows.map(d=>{
+    const st=STATUS[d.status];
+    const r=[];
+    if(d.wait)r.push(rowLine('대기번호',esc(d.wait)));
+    if(d.method)r.push(rowLine('신청방법',esc(d.method)+(d.applied==='yes'?' ✅완료':d.applied==='no'?' ⛔미신청':'')));
+    else if(d.applied)r.push(rowLine('신청',d.applied==='yes'?'✅완료':'⛔미신청'));
+    if(d.phone)r.push(rowLine('전화',esc(d.phone)));
+    if(d.url)r.push(rowLine('홈페이지',`<a href="${esc(d.url)}" target="_blank" rel="noopener">바로가기 ↗</a>`));
+    return `<div class="ccard s-${st.c}">
+      <div class="ch">
+        <div><div class="name">${esc(d.name)}</div><span class="type">${esc(d.type)}</span></div>
+        <span class="badge b-${st.c}">${st.l}</span>
+      </div>
+      ${r.length?`<div class="rows">${r.join('')}</div>`:''}
+      ${d.next?`<div class="next-tag">📅 다음 ${d.next}${daysLeft(d.next)}</div>`:''}
+      ${d.memo?`<div class="memo-line">${esc(d.memo)}</div>`:''}
+      <div class="cact">
+        <button onclick="editItem('${d.id}')">✏ 수정</button>
+        <button onclick="cycle('${d.id}')">↻ 상태변경</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function rowLine(k,v){return `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`}
+function daysLeft(d){
+  const diff=Math.ceil((new Date(d)-new Date().setHours(0,0,0,0))/864e5);
+  if(isNaN(diff))return'';
+  if(diff<0)return ' (지남)';if(diff===0)return ' (오늘)';return ` (D-${diff})`;
+}
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+function cycle(id){
+  const o=['wait','ok','check','no'];
+  const d=data.find(x=>x.id===id);
+  d.status=o[(o.indexOf(d.status)+1)%o.length];
+  save();render();
+}
+
+// ---- 폼 ----
+function openForm(){fill({});document.getElementById('mtitle').textContent='기관 추가';
+  document.getElementById('delbtn').style.display='none';document.getElementById('ov').classList.add('open')}
+function editItem(id){const d=data.find(x=>x.id===id);fill(d);
+  document.getElementById('mtitle').textContent='기관 수정';
+  document.getElementById('delbtn').style.display='block';document.getElementById('ov').classList.add('open')}
+function fill(d){
+  f_id.value=d.id||'';f_name.value=d.name||'';f_type.value=d.type||'유치원';
+  f_status.value=d.status||'wait';f_wait.value=d.wait||'';f_method.value=d.method||'';
+  f_applied.value=d.applied||'';f_next.value=d.next||'';f_phone.value=d.phone||'';
+  f_url.value=d.url||'';f_memo.value=d.memo||'';
+}
+function closeForm(){document.getElementById('ov').classList.remove('open')}
+function saveItem(){
+  if(!f_name.value.trim()){alert('기관명을 입력하세요.');return}
+  const o={id:f_id.value||uid(),name:f_name.value.trim(),type:f_type.value,status:f_status.value,
+    wait:f_wait.value.trim(),method:f_method.value,applied:f_applied.value,next:f_next.value,
+    phone:f_phone.value.trim(),url:f_url.value.trim(),memo:f_memo.value.trim()};
+  const i=data.findIndex(x=>x.id===o.id);
+  if(i>=0)data[i]=o;else data.push(o);
+  save();render();closeForm();
+}
+function delItem(){
+  if(!confirm('이 기관을 삭제할까요?'))return;
+  data=data.filter(x=>x.id!==f_id.value);save();render();closeForm();
+}
+
+// ---- 백업 ----
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='나윤_유치원현황_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+}
+function importJSON(e){
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{try{const arr=JSON.parse(rd.result);
+    if(!Array.isArray(arr))throw 0;
+    if(!confirm('현재 데이터를 불러온 파일로 교체할까요?'))return;
+    data=arr.map(o=>Object.assign({id:uid(),wait:'',method:'',applied:'',next:'',phone:'',url:'',memo:''},o));
+    save();render();alert('불러오기 완료');
+  }catch(err){alert('파일 형식이 올바르지 않습니다.')}};
+  rd.readAsText(f);e.target.value='';
+}
+
+document.getElementById('ov').addEventListener('click',e=>{if(e.target.id==='ov')closeForm()});
+document.getElementById('ovTok').addEventListener('click',e=>{if(e.target.id==='ovTok')closeToken()});
+
+// 페이지 로드 시 잠금 확인
+initLock();
+</script>
+</body>
+</html>
